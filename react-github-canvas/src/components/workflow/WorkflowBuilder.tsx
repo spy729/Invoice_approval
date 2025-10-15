@@ -140,7 +140,7 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
     // ------------------ APPROVAL NODE ------------------
     if (type === "approval") {
       const processedRows = payloads.map(row => {
-        const assignees = [];
+        let assignees: string[] = [];
         if (Array.isArray(config.rules)) {
           for (const rule of config.rules) {
             if (evaluateRule(rule, row) && rule.assignee) assignees.push(rule.assignee);
@@ -148,6 +148,8 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
         } else if (config.assignee) {
           assignees.push(config.assignee);
         }
+        // Always return assignees as array, never undefined
+        if (!assignees) assignees = [];
         return { ...row, assignees, approvalLabel: config.label || node.label || "Approval" };
       });
 

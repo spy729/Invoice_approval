@@ -179,9 +179,29 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
                 {log.output && (
                   <div className="mt-3 p-2 bg-muted/30 rounded border border-border">
                     <pre className="text-xs font-mono overflow-x-auto">
-                      {log.nodeId && log.output.true !== undefined && log.output.false !== undefined
-                        ? `True Branch:\n${JSON.stringify(log.output.true, null, 2)}\n\nFalse Branch:\n${JSON.stringify(log.output.false, null, 2)}`
-                        : JSON.stringify(log.output, null, 2)}
+                      {(() => {
+                        // Helper to stringify output, replacing undefined assignees with []
+                        function cleanOutput(obj) {
+                          if (!obj) return obj;
+                          const copy = JSON.parse(JSON.stringify(obj));
+                          if (Array.isArray(copy)) {
+                            return copy.map(cleanOutput);
+                          }
+                          if (typeof copy === 'object') {
+                            if ('assignees' in copy && (copy.assignees === undefined || copy.assignees === null)) {
+                              copy.assignees = [];
+                            }
+                            for (const k in copy) {
+                              copy[k] = cleanOutput(copy[k]);
+                            }
+                          }
+                          return copy;
+                        }
+                        if (log.nodeId && log.output.true !== undefined && log.output.false !== undefined) {
+                          return `True Branch:\n${JSON.stringify(cleanOutput(log.output.true), null, 2)}\n\nFalse Branch:\n${JSON.stringify(cleanOutput(log.output.false), null, 2)}`;
+                        }
+                        return JSON.stringify(cleanOutput(log.output), null, 2);
+                      })()}
                     </pre>
                   </div>
                 )}
