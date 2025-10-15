@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* GitHub Dark Theme */
+    --background: 215 28% 6%;
+    --foreground: 213 27% 84%;
+
+    --card: 217 32% 9%;
+    --card-foreground: 213 27% 84%;
+
+    --popover: 217 32% 9%;
+    --popover-foreground: 213 27% 84%;
+
+    --primary: 212 92% 65%;
+    --primary-foreground: 215 28% 6%;
+
+    --secondary: 217 28% 14%;
+    --secondary-foreground: 213 27% 84%;
+
+    --muted: 217 28% 14%;
+    --muted-foreground: 215 14% 51%;
+
+    --accent: 212 92% 65%;
+    --accent-foreground: 215 28% 6%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 213 27% 84%;
+
+    --border: 217 28% 14%;
+    --input: 217 28% 14%;
+    --ring: 212 92% 65%;
+
+    --radius: 0.5rem;
+
+    /* Custom GitHub colors */
+    --github-success: 130 62% 51%;
+    --github-warning: 36 100% 58%;
+    --github-danger: 0 85% 60%;
+    --github-canvas: 215 28% 6%;
+    --github-panel: 217 32% 9%;
+    --github-border: 217 28% 14%;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(var(--background) / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(var(--background) / 0.1), 0 2px 4px -1px hsl(var(--background) / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(var(--background) / 0.1), 0 4px 6px -2px hsl(var(--background) / 0.05);
+
+    --sidebar-background: 217 32% 9%;
+    --sidebar-foreground: 213 27% 84%;
+    --sidebar-primary: 212 92% 65%;
+    --sidebar-primary-foreground: 215 28% 6%;
+    --sidebar-accent: 217 28% 14%;
+    --sidebar-accent-foreground: 213 27% 84%;
+    --sidebar-border: 217 28% 14%;
+    --sidebar-ring: 212 92% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
