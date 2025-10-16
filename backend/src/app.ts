@@ -16,9 +16,16 @@ import errorHandler from './middleware/errorHandler';
 const app: Express = express();
 
 // Middlewares
-// Enable CORS for development
+
+// Allow origins from env for deployment
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:8080,http://localhost:4000').split(',');
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:4000'],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
@@ -27,10 +34,10 @@ app.use(cors({
 // Add cookie parser middleware
 app.use(cookieParser());
 
-// Add headers for all responses
+// Add headers for all responses (deployment ready)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && ['http://localhost:8080', 'http://localhost:4000'].includes(origin)) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -52,14 +59,15 @@ app.get('/', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'API is running' });
 });
 
-// Register API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/workflows', workflowRoutes);
-app.use('/api/invoices', invoiceRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/runs', runsRoutes);
+// Use API_BASE_URL from env, default to '/api'
+const API_BASE_URL = process.env.API_BASE_URL || '/api';
+app.use(`${API_BASE_URL}/auth`, authRoutes);
+app.use(`${API_BASE_URL}/workflows`, workflowRoutes);
+app.use(`${API_BASE_URL}/invoices`, invoiceRoutes);
+app.use(`${API_BASE_URL}/users`, usersRoutes);
+app.use(`${API_BASE_URL}/runs`, runsRoutes);
 // TODO: Uncomment when runs feature is implemented
-// app.use('/api/runs', runRoutes);
+// app.use(`${API_BASE_URL}/runs`, runRoutes);
 
 // Generic error handler (should be last middleware)
 app.use(errorHandler);
