@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { WorkflowNode, NodeType } from "@/types/workflow";
 import { NodeToolbar } from "./NodeToolbar";
 import { ConfigPanel } from "./ConfigPanel";
@@ -231,6 +231,15 @@ export const WorkflowBuilder = ({
   const [selectedCard, setSelectedCard] = useState<WorkflowNode | null>(null);
   const [workflowName, setWorkflowName] = useState(() => workflow?.name || localStorage.getItem("workflow_name") || "");
   const [workflowId, setWorkflowId] = useState(workflow?.id || "");
+
+  // Reload canvas when workflow prop changes
+  useEffect(() => {
+    if (workflow) {
+      setCards(ensureUniqueCardIds(workflow.nodes || []));
+      setWorkflowName(workflow.name || "");
+      setWorkflowId(workflow.id || "");
+    }
+  }, [workflow]);
   const [isSaving, setIsSaving] = useState(false);
   const [runResult, setRunResult] = useState<any>(null);
   const [runHistory, setRunHistory] = useState<any[]>(() => JSON.parse(localStorage.getItem("workflow_runHistory") || "[]"));

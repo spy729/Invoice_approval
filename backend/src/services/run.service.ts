@@ -76,11 +76,22 @@ async function executeWorkflowRun(
   // Generate output CSV from allResults
   const outputCsv = toCSVArray(allResults);
 
-  // Build meta object with company info and output CSV
+  // Build meta object with company info, output CSV, and workflow snapshot
   const meta: Record<string, any> = {};
   if (outputCsv) meta.outputCsv = outputCsv;
   if (companyInfo?.companyId) meta.companyId = companyInfo.companyId;
   if (companyInfo?.companyName) meta.companyName = companyInfo.companyName;
+  // Store full workflow JSON (nodes and edges) for run history
+  meta.workflow = {
+    nodes: workflow.nodes,
+    edges: workflow.edges,
+    name: workflow.name,
+    status: workflow.status,
+    isActive: workflow.isActive,
+    createdBy: workflow.createdBy,
+    companyId: workflow.companyId,
+    _id: workflow._id,
+  };
 
   const run = new RunModel({
     workflowId: workflow._id,

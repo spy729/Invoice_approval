@@ -81,7 +81,13 @@ const Index = () => {
         </div>
 
         <TabsContent value="builder" className="h-full m-0">
-          <WorkflowBuilder workflow={loadedWorkflow} />
+          <WorkflowBuilder 
+            externalWorkflow={loadedWorkflow}
+            externalRun={null}
+            onRunHistoryChange={() => {
+              fetchRuns().then(setRuns).catch(() => setRuns([]));
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="runs" className="h-full m-0 overflow-y-auto">

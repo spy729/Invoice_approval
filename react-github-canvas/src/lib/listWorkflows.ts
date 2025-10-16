@@ -8,7 +8,7 @@ export async function listWorkflows() {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    withCredentials: false,
+    withCredentials: true,
   });
   return res.data;
 }

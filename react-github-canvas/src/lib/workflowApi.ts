@@ -22,7 +22,7 @@ export async function saveWorkflow({ name, cards, edges = [], status = "draft" }
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      withCredentials: false,
+      withCredentials: true,
     }
   );
   return res.data;
@@ -38,7 +38,7 @@ export async function publishWorkflow({ id }: { id: string }) {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      withCredentials: false,
+      withCredentials: true,
     }
   );
   return res.data;

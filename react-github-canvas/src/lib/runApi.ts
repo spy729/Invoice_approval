@@ -11,7 +11,7 @@ export async function runWorkflow({ workflowId, input }: { workflowId: string; i
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      withCredentials: false,
+      withCredentials: true,
     }
   );
   return res.data;
@@ -24,6 +24,7 @@ export async function fetchRuns() {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    withCredentials: true,
   });
   return res.data;
 }
@@ -36,6 +37,7 @@ export async function downloadRunCSV(runId: string): Promise<Blob> {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     responseType: "blob",
+    withCredentials: true,
   });
   return res.data as Blob;
 }

@@ -46,4 +46,17 @@ export interface WorkflowRun {
   }>;
   startedAt: Date;
   finishedAt?: Date;
+  meta?: {
+    workflow?: {
+      nodes?: any[];
+      edges?: any[];
+      name?: string;
+      status?: string;
+      isActive?: boolean;
+      createdBy?: string;
+      companyId?: string;
+      _id?: string;
+    };
+    [key: string]: any;
+  };
 }

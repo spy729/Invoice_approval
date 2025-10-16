@@ -1,4 +1,4 @@
-// Clean implementation for RunViewer
+// Clean implementation for RunViewer with Canvas redirection
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Clock, Play, Download } from "lucide-react";
 import { WorkflowRun, NodeStatus } from "@/types/workflow";
 import { listWorkflows } from "@/lib/listWorkflows";
-import { getWorkflow } from "@/lib/getWorkflow";
 import { WorkflowCardDetails } from "./WorkflowCardDetails";
 
 const statusIcons: Record<NodeStatus, any> = {
@@ -27,22 +26,24 @@ const statusColors: Record<NodeStatus, string> = {
 
 interface RunViewerProps {
   runs: WorkflowRun[];
-  onOpenWorkflow?: (workflow: any) => void;
+  onOpenWorkflow?: (payload: { workflow: any; run?: any }) => void;
 }
 
 export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
+  const [expandedWorkflowIdx, setExpandedWorkflowIdx] = useState<number | null>(null);
   const [selectedRunIdx, setSelectedRunIdx] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [workflows, setWorkflows] = useState<any[]>([]);
 
   useEffect(() => {
-    listWorkflows().then(setWorkflows).catch(() => setWorkflows([]));
+    listWorkflows()
+      .then(setWorkflows)
+      .catch(() => setWorkflows([]));
   }, []);
 
   if (!runs || runs.length === 0) {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        {/* Show saved workflows if any */}
         {workflows.length > 0 && (
           <div className="mt-8">
             <h3 className="text-lg font-semibold mb-2">Saved Workflows</h3>
@@ -61,12 +62,14 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
     );
   }
 
+  const run = runs[selectedRunIdx];
+
   // Download processed CSV for the selected run
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const { id } = runs[selectedRunIdx];
-      const blob = await import("@/lib/runApi").then(m => m.downloadRunCSV(id));
+      const { id } = run;
+      const blob = await import("@/lib/runApi").then((m) => m.downloadRunCSV(id));
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -75,15 +78,59 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch {
       alert("Failed to download CSV. Please try again.");
     } finally {
       setDownloading(false);
     }
   };
-  const run = runs[selectedRunIdx];
+
+  // 👉 Redirect selected run/workflow to Canvas
+  const handleOpenInCanvas = (runData?: any) => {
+    if (onOpenWorkflow && runData?.meta?.workflow) {
+      onOpenWorkflow({
+        workflow: {
+          ...runData.meta.workflow,
+          nodes: runData.meta.workflow.nodes || [],
+          edges: runData.meta.workflow.edges || [],
+          id: runData.meta.workflow._id || runData.meta.workflow.id,
+        },
+        run: runData,
+      });
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
+      {/* Top Section: Workflow Info */}
+      {run?.meta?.workflow && (
+        <Card className="p-4 border-border mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-lg font-semibold">Workflow Snapshot</h3>
+            <Button variant="secondary" onClick={() => handleOpenInCanvas(run)}>
+              Open in Canvas
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground mb-2">
+            <p><b>Name:</b> {run.meta.workflow.name}</p>
+            <p><b>Status:</b> {run.meta.workflow.status}</p>
+            <p><b>Created By:</b> {run.meta.workflow.createdBy}</p>
+            <p><b>Company ID:</b> {run.meta.workflow.companyId}</p>
+          </div>
+          <details className="mt-2">
+            <summary className="cursor-pointer font-medium">Nodes & Edges JSON</summary>
+            <pre className="text-xs font-mono overflow-x-auto mt-2">
+              {JSON.stringify(
+                { nodes: run.meta.workflow.nodes, edges: run.meta.workflow.edges },
+                null,
+                2
+              )}
+            </pre>
+          </details>
+        </Card>
+      )}
+
+      {/* Run Selector */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Workflow Runs</h2>
@@ -93,7 +140,9 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
                 key={r.id || idx}
                 size="sm"
                 variant={selectedRunIdx === idx ? "default" : "outline"}
-                onClick={() => setSelectedRunIdx(idx)}
+                onClick={() => {
+                  setSelectedRunIdx(idx);
+                }}
               >
                 Run {idx + 1}
               </Button>
@@ -113,42 +162,68 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
           {run.status}
         </Badge>
       </div>
-      {/* Show saved workflows above run logs */}
+
+      {/* Saved Workflows Section */}
       {workflows.length > 0 && (
         <div className="mt-8">
           <h3 className="text-lg font-semibold mb-2">Saved Workflows</h3>
           <div className="space-y-2">
-            {workflows.map(wf => (
-              <Card key={wf.id} className="p-4 border-border text-left">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-bold">{wf.name}</div>
-                    <div className="text-xs text-muted-foreground">{wf.status}</div>
+            {workflows.map((wf, idx) => (
+              <div key={wf.id}>
+                <Card
+                  className="p-4 border-border text-left cursor-pointer hover:bg-muted/40 transition"
+                  onClick={() => {
+                    console.log('Clicked workflow:', wf);
+                    console.log('Expanded idx:', expandedWorkflowIdx === idx ? null : idx);
+                    setExpandedWorkflowIdx(expandedWorkflowIdx === idx ? null : idx);
+                    if (onOpenWorkflow) {
+                      onOpenWorkflow({
+                        ...wf,
+                        nodes: wf.nodes || [],
+                        edges: wf.edges || [],
+                        id: wf._id || wf.id,
+                      });
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold">{wf.name}</div>
+                      <div className="text-xs text-muted-foreground">{wf.status}</div>
+                    </div>
+                    <Badge>{wf.status}</Badge>
                   </div>
-                  <Badge>{wf.status}</Badge>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">{wf.id}</div>
-              </Card>
+                  <div className="mt-2 text-xs text-muted-foreground">{wf.id}</div>
+                </Card>
+                {expandedWorkflowIdx === idx && (
+                  <div className="p-4 border border-border bg-muted/10 mt-2 rounded">
+                    <div className="font-semibold mb-2">Workflow JSON</div>
+                    <pre className="text-xs font-mono overflow-x-auto">
+                      {JSON.stringify(wf, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Logs Section */}
       <div className="grid grid-cols-2 gap-4">
         <Card className="p-4 border-border">
           <p className="text-sm text-muted-foreground mb-1">Started At</p>
-          <p className="font-mono text-sm">
-            {new Date(run.startedAt).toLocaleString()}
-          </p>
+          <p className="font-mono text-sm">{new Date(run.startedAt).toLocaleString()}</p>
         </Card>
         <Card className="p-4 border-border">
           <p className="text-sm text-muted-foreground mb-1">Finished At</p>
           <p className="font-mono text-sm">
-            {run.finishedAt
-              ? new Date(run.finishedAt).toLocaleString()
-              : "In Progress"}
+            {run.finishedAt ? new Date(run.finishedAt).toLocaleString() : "In Progress"}
           </p>
         </Card>
       </div>
+
+      {/* Execution Log */}
       <div>
         <h3 className="text-lg font-semibold mb-3">Execution Log</h3>
         <div className="space-y-2">
@@ -168,40 +243,15 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
                         {new Date(log.timestamp).toLocaleTimeString()}
                       </p>
                       {log.error && (
-                        <p className="text-xs text-github-danger mt-1">
-                          {log.error}
-                        </p>
+                        <p className="text-xs text-github-danger mt-1">{log.error}</p>
                       )}
                     </div>
                   </div>
                 </div>
-                {/* Show processed output for each node, including rule branches */}
                 {log.output && (
                   <div className="mt-3 p-2 bg-muted/30 rounded border border-border">
                     <pre className="text-xs font-mono overflow-x-auto">
-                      {(() => {
-                        // Helper to stringify output, replacing undefined assignees with []
-                        function cleanOutput(obj) {
-                          if (!obj) return obj;
-                          const copy = JSON.parse(JSON.stringify(obj));
-                          if (Array.isArray(copy)) {
-                            return copy.map(cleanOutput);
-                          }
-                          if (typeof copy === 'object') {
-                            if ('assignees' in copy && (copy.assignees === undefined || copy.assignees === null)) {
-                              copy.assignees = [];
-                            }
-                            for (const k in copy) {
-                              copy[k] = cleanOutput(copy[k]);
-                            }
-                          }
-                          return copy;
-                        }
-                        if (log.nodeId && log.output.true !== undefined && log.output.false !== undefined) {
-                          return `True Branch:\n${JSON.stringify(cleanOutput(log.output.true), null, 2)}\n\nFalse Branch:\n${JSON.stringify(cleanOutput(log.output.false), null, 2)}`;
-                        }
-                        return JSON.stringify(cleanOutput(log.output), null, 2);
-                      })()}
+                      {JSON.stringify(log.output, null, 2)}
                     </pre>
                   </div>
                 )}
@@ -210,6 +260,8 @@ export const RunViewer = ({ runs, onOpenWorkflow }: RunViewerProps) => {
           })}
         </div>
       </div>
+
+      {/* Download Results */}
       {run.status === "completed" && (
         <Button className="w-full" onClick={handleDownload} disabled={downloading}>
           <Download className="w-4 h-4 mr-2" />
