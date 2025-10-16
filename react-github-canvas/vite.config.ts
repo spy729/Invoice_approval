@@ -37,8 +37,7 @@ export default defineConfig(({ mode }: { mode?: string }) => ({
   // is preserved; keep it relative to this package root so builds land in the
   // backend's public folder for easy static serving.
   build: {
-    // from react-github-canvas folder, go up one level to workspace root, then into Invoice_approval/backend/public
-    outDir: path.resolve(__dirname, '..', 'Invoice_approval', 'backend', 'public'),
-    emptyOutDir: true,
-  },
+  outDir: 'dist',
+  emptyOutDir: true,
+},
 }));
