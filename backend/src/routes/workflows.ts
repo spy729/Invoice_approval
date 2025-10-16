@@ -19,6 +19,7 @@ router.post('/', authenticateJWT, requireRole('admin'), createWorkflow);
 router.get('/', authenticateJWT, requireRole(['admin', 'manager']), getWorkflows);
 
 // Run a workflow with input (admin/manager)
+// This endpoint must be called with POST to store a Run document
 router.post('/:id/run', authenticateJWT, requireRole(['admin', 'manager']), runWorkflow);
 
 // Get specific workflow (admin/manager)

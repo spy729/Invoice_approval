@@ -8,6 +8,41 @@ import executeWorkflow from '../utils/executeWorkflow';
 
 const router = Router();
 
+// Create a run using workflowId
+router.post('/by-workflow', async (req, res) => {
+  try {
+    const { workflowId, invoiceId, steps, status, meta } = req.body;
+    if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
+    const run = new Run({
+      workflowId,
+      invoiceId,
+      steps: steps || [],
+      status: status || 'pending',
+      meta: meta || {},
+      startedAt: new Date(),
+    });
+    await run.save();
+    res.status(201).json(run);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all runs by workflowId
+router.get('/by-workflow/:workflowId', async (req, res) => {
+  try {
+    const { workflowId } = req.params;
+    if (!workflowId) return res.status(400).json({ error: 'workflowId is required' });
+    const runs = await Run.find({ workflowId }).sort({ createdAt: -1 });
+    res.json(runs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
 // GET /api/runs - fetch all runs for the current user's company
 router.get('/', authenticateJWT, async (req: AuthRequest, res: Response) => {
   try {

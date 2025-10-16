@@ -40,7 +40,7 @@ const StepSchema: Schema<IRunStep> = new Schema(
 const RunSchema: Schema<IRun> = new Schema(
   {
     workflowId: { type: Schema.Types.ObjectId, ref: 'Workflow', required: true, index: true },
-    invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true, index: true },
+  invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: false, index: true },
     steps: { type: [StepSchema], default: [] },
     meta: { type: Schema.Types.Mixed },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

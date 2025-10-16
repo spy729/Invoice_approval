@@ -1,14 +1,14 @@
-import axios from "axios";
-import { API_BASE_URL } from "@/config";
+import apiFetch from "./api";
 
 export async function listWorkflows() {
-  const token = localStorage.getItem("workflow_token");
-  const res = await axios.get(`${API_BASE_URL}/workflows`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    withCredentials: true,
-  });
-  return res.data;
+	// Fetch published workflows from backend
+	try {
+		const data = await apiFetch(`/api/workflows`);
+		return data;
+	} catch (err) {
+		console.error("listWorkflows error:", err);
+		return [];
+	}
 }
+
+export default listWorkflows;

@@ -140,7 +140,7 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
     // ------------------ APPROVAL NODE ------------------
     if (type === "approval") {
       const processedRows = payloads.map(row => {
-        let assignees: string[] = [];
+        const assignees = [];
         if (Array.isArray(config.rules)) {
           for (const rule of config.rules) {
             if (evaluateRule(rule, row) && rule.assignee) assignees.push(rule.assignee);
@@ -148,8 +148,6 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
         } else if (config.assignee) {
           assignees.push(config.assignee);
         }
-        // Always return assignees as array, never undefined
-        if (!assignees) assignees = [];
         return { ...row, assignees, approvalLabel: config.label || node.label || "Approval" };
       });
 
@@ -240,12 +238,23 @@ export const WorkflowBuilder = ({
       setWorkflowId(workflow.id || "");
     }
   }, [workflow]);
+  
   const [isSaving, setIsSaving] = useState(false);
   const [runResult, setRunResult] = useState<any>(null);
   const [runHistory, setRunHistory] = useState<any[]>(() => JSON.parse(localStorage.getItem("workflow_runHistory") || "[]"));
   const [savedWorkflows, setSavedWorkflows] = useState<any[]>(() => JSON.parse(localStorage.getItem("workflow_savedWorkflows") || "[]"));
 
   const persist = useCallback((key: string, value: any) => localStorage.setItem(key, JSON.stringify(value)), []);
+
+  // Safe live JSON for viewer (handles previous formats where config may be at different paths)
+  const liveJson = {
+    name: workflowName,
+    cards: cards.map((c) => ({
+      id: c.id,
+      type: c.type,
+      config: (c.data?.config) || {},
+    })),
+  };
 
   const onAddCard = (type: NodeType) => {
     const id = getCardId();
@@ -290,9 +299,10 @@ export const WorkflowBuilder = ({
       const inputData = inputNode?.data?.config?.result || [];
       if (!Array.isArray(inputData) || inputData.length === 0)
         return toast.error("Upload data in Input Node first");
-
-      const workflowJson = { name: workflowName, cards: cards.map((c) => ({ id: c.id, type: c.type, config: c.data.config })) };
+      const workflowJson = liveJson; // use safe live json
+      console.log("[DEBUG] Running workflow", workflowJson, "with", inputData.length, "rows");
       const result = runLocalWorkflowBulk(workflowJson, inputData, workflowJson.cards[0]?.id);
+      console.log("[DEBUG] runLocalWorkflowBulk result:", result);
       setRunResult(result);
 
       const newHistory = [{ result, workflow: workflowJson }, ...runHistory].slice(0, 5);
@@ -371,8 +381,33 @@ export const WorkflowBuilder = ({
             type="text"
             value={workflowName}
             onChange={(e) => setWorkflowName(e.target.value)}
-            className="w-full border rounded px-2 py-1 mb-2"
+            className="w-full border rounded px-2 py-1 mb-2 text-black"
           />
+          {/* Display a short version of internal saved workflow id when available */}
+          {workflowId ? (
+            <div className="text-xs text-muted-foreground mt-1" title={workflowId}>
+              <div className="flex items-center gap-2">
+                <div>Saved ID:</div>
+                <div className="font-mono text-sm text-foreground">{String(workflowId).slice(0, 8)}{String(workflowId).length > 8 ? '...' : ''}</div>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(String(workflowId));
+                      toast.success('Workflow id copied');
+                    } catch (e) {
+                      console.error('copy failed', e);
+                      toast.error('Copy failed');
+                    }
+                  }}
+                  title="Copy full id"
+                  className="text-xs px-2 py-1 border rounded bg-transparent"
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="text-[11px] text-muted-foreground">(internal database id — used for runs/publishing)</div>
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-col gap-2 mt-2">
           <Button onClick={onRunWorkflow} disabled={isSaving}><Play className="w-4 h-4 mr-2" />Run</Button>
@@ -418,28 +453,32 @@ export const WorkflowBuilder = ({
         {runResult && (
           <div className="mt-8 p-4 border rounded-lg bg-muted">
             <h3 className="font-semibold mb-2">Workflow Results</h3>
-            <div className="overflow-x-auto mb-4">
-              <table className="min-w-full text-xs border">
-                <thead>
-                  <tr>
-                    {Object.keys(runResult.steps[0] || {}).map((key) => (
-                      <th key={key} className="border px-2 py-1 bg-card">{key}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {runResult.steps.map((step: any, i: number) => (
-                    <tr key={i}>
-                      {Object.keys(runResult.steps[0] || {}).map((key) => (
-                        <td key={key} className="border px-2 py-1">
-                          {typeof step[key] === "object" ? JSON.stringify(step[key]) : String(step[key])}
-                        </td>
+              {Array.isArray(runResult?.steps) && runResult.steps.length ? (
+                <div className="overflow-x-auto mb-4">
+                  <table className="min-w-full text-xs border">
+                    <thead>
+                      <tr>
+                        {Object.keys(runResult.steps[0] || {}).map((key) => (
+                          <th key={key} className="border px-2 py-1 bg-card">{key}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {runResult.steps.map((step: any, i: number) => (
+                        <tr key={i}>
+                          {Object.keys(runResult.steps[0] || {}).map((key) => (
+                            <td key={key} className="border px-2 py-1">
+                              {typeof step[key] === "object" ? JSON.stringify(step[key]) : String(step[key])}
+                            </td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No results to display. Run the workflow to see output here.</div>
+              )}
             <Button onClick={downloadCSV}>Download CSV</Button>
           </div>
         )}

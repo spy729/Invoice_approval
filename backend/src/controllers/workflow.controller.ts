@@ -122,15 +122,23 @@ export async function runWorkflow(req: AuthRequest, res: Response) {
     const workflow = await WorkflowModel.findById(id);
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
 
-    const input = req.body.input || req.body || {};
+    // Only allow POST for running workflows
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed. Use POST to run a workflow.' });
+    }
+
+    // Always create a Run, even if input is empty
+    let input = req.body.input;
+    if (typeof input === 'undefined') input = req.body || {};
     // Lazy import run service to avoid circular
     const { default: runService } = await import('../services/run.service');
     const companyInfo = {
       companyId: req.user?.companyId,
       companyName: req.user?.name,
     };
+    // Always create a Run document in the Run collection
     const run = await runService.executeWorkflowRun(workflow, input, companyInfo);
-    return res.json(run);
+    return res.status(201).json(run);
   } catch (err) {
     console.error('runWorkflow error:', err);
     return res.status(500).json({ error: 'Internal server error' });
