@@ -3,7 +3,7 @@ import { WorkflowNode, NodeType } from "@/types/workflow";
 import { NodeToolbar } from "./NodeToolbar";
 import { ConfigPanel } from "./ConfigPanel";
 import { Button } from "@/components/ui/button";
-import { Play, Save, Trash2, UploadCloud } from "lucide-react";
+import { Play, Save, Trash2, UploadCloud, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { saveWorkflow, publishWorkflow } from "@/lib/workflowApi";
 
@@ -79,14 +79,21 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
    *   run the export node over the combined results if an export node exists.
    */
   const processNode = (nodeId, payloads) => {
-    if (!nodeId || !payloads || !payloads.length) return [];
+    try {
+      if (!nodeId || !payloads || !payloads.length) return [];
+    } catch (err) {
+      console.error('[runLocalWorkflowBulk] early check failed', err);
+      return [];
+    }
     const node = nodeById.get(nodeId);
     if (!node) return payloads;
 
     const type = (node.type || "").toLowerCase();
     const config = node.config || {};
 
-    console.log(`[DEBUG] Processing ${nodeId} (${type}) with ${payloads.length} rows.`);
+    // Detailed debug: show node, type and a sample of payload
+    console.log(`[DEBUG] Processing ${nodeId} (${type}) with ${payloads.length} rows. config keys: ${Object.keys(config || {}).join(',')}`);
+    if (payloads.length) console.log(`[DEBUG] Sample row keys: ${Object.keys(payloads[0]).slice(0,20).join(',')}`);
 
     // ------------------ INPUT NODE ------------------
     if (type === "input") {
@@ -120,15 +127,17 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
         else falseRows.push(row);
       }
 
-      console.log(`[DEBUG] Rule node ${nodeId}: true=${trueRows.length}, false=${falseRows.length}`);
+  console.log(`[DEBUG] Rule node ${nodeId}: true=${trueRows.length}, false=${falseRows.length}`);
 
       let results = [];
       if (trueNext && trueRows.length) {
-        const r = processNode(trueNext, trueRows);
+        let r;
+        try { r = processNode(trueNext, trueRows); } catch (err) { console.error(`[runLocalWorkflowBulk] error processing trueNext ${trueNext}`, err); r = []; }
         if (Array.isArray(r)) results = results.concat(r);
       }
       if (falseNext && falseRows.length) {
-        const r = processNode(falseNext, falseRows);
+        let r;
+        try { r = processNode(falseNext, falseRows); } catch (err) { console.error(`[runLocalWorkflowBulk] error processing falseNext ${falseNext}`, err); r = []; }
         if (Array.isArray(r)) results = results.concat(r);
       }
 
@@ -143,7 +152,7 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
         const assignees = [];
         if (Array.isArray(config.rules)) {
           for (const rule of config.rules) {
-            if (evaluateRule(rule, row) && rule.assignee) assignees.push(rule.assignee);
+            try { if (evaluateRule(rule, row) && rule.assignee) assignees.push(rule.assignee); } catch (err) { console.error('[runLocalWorkflowBulk] evaluateRule error', err, { rule, row }); }
           }
         } else if (config.assignee) {
           assignees.push(config.assignee);
@@ -162,6 +171,8 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
     // ------------------ EXPORT NODE ------------------
     if (type === "export") {
       console.log(`[DEBUG] Export node reached: ${payloads.length} rows exporting`);
+      // show first row sample
+      if (payloads.length) console.log('[DEBUG] Export sample row:', payloads[0]);
       return payloads.map(row => ({
         ...row,
         exportFormat: config.format || "csv",
@@ -178,7 +189,8 @@ function runLocalWorkflowBulk(workflowJson, docs, startId) {
   };
 
   const startNodeId = startId || workflowJson.cards[0]?.id;
-  let results = processNode(startNodeId, docs);
+  let results;
+  try { results = processNode(startNodeId, docs); } catch (err) { console.error('[runLocalWorkflowBulk] top-level processNode error', err); results = []; }
 
   // If any branch returned nested arrays, flatten them
   if (Array.isArray(results) && results.some(Array.isArray)) {
@@ -276,6 +288,19 @@ export const WorkflowBuilder = ({
     setCards(updated);
     persist("workflow_cards", updated);
     toast.success(`${type} node added`);
+  };
+
+  const moveCard = (cardId: string, direction: "up" | "down") => {
+    const idx = cards.findIndex(c => c.id === cardId);
+    if (idx === -1) return;
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= cards.length) return;
+    const cloned = structuredClone(cards);
+    const tmp = cloned[swapWith];
+    cloned[swapWith] = cloned[idx];
+    cloned[idx] = tmp;
+    setCards(cloned);
+    persist("workflow_cards", cloned);
   };
 
   const onUpdateCard = (cardId: string, data: any) => {
@@ -433,9 +458,25 @@ export const WorkflowBuilder = ({
                   <span className="font-semibold">{card.data.label}</span>
                   <span className="ml-2 text-xs text-muted-foreground">[{card.type}]</span>
                 </div>
-                <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); onDeleteCard(card.id); }}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); moveCard(card.id, 'up'); }}
+                    title="Move up"
+                    className="p-1 rounded hover:bg-muted"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); moveCard(card.id, 'down'); }}
+                    title="Move down"
+                    className="p-1 rounded hover:bg-muted"
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                  </button>
+                  <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); onDeleteCard(card.id); }}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}

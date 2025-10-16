@@ -28,6 +28,8 @@ router.get('/me', authenticateJWT, async (req: AuthRequest, res: Response) => {
     if (!userId) return res.status(401).json({ error: 'Not authenticated' });
     const u = await User.findById(userId).select('-password');
     if (!u) return res.status(404).json({ error: 'User not found' });
+    // Ensure this sensitive auth response is not cached by browsers/proxies
+    res.set('Cache-Control', 'no-store');
     res.json(u);
   } catch (err) {
     console.error('GET /api/users/me error', err);
