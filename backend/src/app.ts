@@ -16,15 +16,35 @@ import errorHandler from './middleware/errorHandler';
 const app: Express = express();
 
 // Middlewares
+// Enable CORS for development
+// Allowed origins (include your deployed frontend and backend URLs)
+const defaultOrigins = [
+  'http://localhost:8080',
+  'http://localhost:4000',
+  'https://invoice-approval.vercel.app',
+  'https://invoice-approval-iv8n.onrender.com'
+];
 
-// Allow origins from env for deployment
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:8080,http://localhost:4000').split(',');
+// If `CORS_ALLOWED_ORIGINS` is set in env it can contain a comma-separated list of origins
+// Also accept a single `FRONTEND_URL` env var for convenience. These are appended to defaults.
+const envOrigins: string[] = [];
+if (process.env.CORS_ALLOWED_ORIGINS) {
+  envOrigins.push(...process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean));
+}
+if (process.env.FRONTEND_URL) {
+  envOrigins.push(process.env.FRONTEND_URL.trim());
+}
+
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+console.log('[app] allowed CORS origins:', allowedOrigins);
+
+// Use dynamic origin function so we can echo back the Origin header when it's allowed.
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    return callback(new Error('CORS policy: Origin not allowed'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -34,10 +54,11 @@ app.use(cors({
 // Add cookie parser middleware
 app.use(cookieParser());
 
-// Add headers for all responses (deployment ready)
+// Add headers for all responses
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  const origin = req.headers.origin as string | undefined;
   if (origin && allowedOrigins.includes(origin)) {
+    // Echo back the allowed origin so browsers accept cookies when credentials:true
     res.header('Access-Control-Allow-Origin', origin);
   }
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -59,15 +80,14 @@ app.get('/', (req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'API is running' });
 });
 
-// Use API_BASE_URL from env, default to '/api'
-const API_BASE_URL = process.env.API_BASE_URL || '/api';
-app.use(`${API_BASE_URL}/auth`, authRoutes);
-app.use(`${API_BASE_URL}/workflows`, workflowRoutes);
-app.use(`${API_BASE_URL}/invoices`, invoiceRoutes);
-app.use(`${API_BASE_URL}/users`, usersRoutes);
-app.use(`${API_BASE_URL}/runs`, runsRoutes);
+// Register API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/workflows', workflowRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/runs', runsRoutes);
 // TODO: Uncomment when runs feature is implemented
-// app.use(`${API_BASE_URL}/runs`, runRoutes);
+// app.use('/api/runs', runRoutes);
 
 // Generic error handler (should be last middleware)
 app.use(errorHandler);
