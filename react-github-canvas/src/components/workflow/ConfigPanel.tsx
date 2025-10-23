@@ -15,7 +15,7 @@ type ConfigPanelProps = {
 import { X } from "lucide-react";
 import { InputNodeData } from "./InputNodeData";
 import { useForm } from "react-hook-form";
-import { useEffect, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { API_BASE_URL } from "@/config";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -112,41 +112,46 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
   });
   const { register, handleSubmit, formState, setValue, watch } = form;
 
-  // Determine available invoice fields from the Input node's uploaded result
-  const inputNode = allCards?.find(c => c.type === 'input');
-  const invoiceFields: string[] = [];
-  try {
-    const sample = inputNode?.data?.config?.result?.[0];
-    if (sample && typeof sample === 'object') {
-      invoiceFields.push(...Object.keys(sample));
+  // Extract available fields from the Input node's uploaded data (first row keys)
+  const inputFields = useMemo(() => {
+    try {
+      const inputNode = allCards?.find(c => c.type === 'input');
+      const rows = inputNode?.data?.config?.result || [];
+      if (!Array.isArray(rows) || rows.length === 0) return [];
+      const first = rows[0];
+      return Object.keys(first);
+    } catch (err) {
+      return [];
     }
-  } catch {}
+  }, [allCards]);
 
-  // Employees (assignees) for approval dropdown
-  const [employees, setEmployees] = useState<any[]>([]);
+  // Load users for assignee dropdown
+  const [users, setUsers] = useState<Array<{ _id: string; name: string; email: string }>>([]);
   useEffect(() => {
-    if (!node || node.type !== 'approval') return;
-    const fetchEmployees = async () => {
+    let mounted = true;
+    const load = async () => {
       try {
-        const token = localStorage.getItem('workflow_token');
-        const res = await fetch(`${API_BASE_URL}/users`, {
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        });
-        if (!res.ok) {
-          console.warn('Could not fetch employees:', res.status, await res.text());
-          return;
-        }
+        const res = await fetch(`${API_BASE_URL}/users`, { credentials: 'include' });
+        if (!res.ok) return; // ignore
         const data = await res.json();
-        setEmployees(Array.isArray(data) ? data : []);
+        if (mounted && Array.isArray(data)) setUsers(data);
       } catch (err) {
-        console.error('Error fetching employees', err);
+        // ignore
       }
     };
-    fetchEmployees();
-  }, [node]);
+    load();
+    return () => { mounted = false; };
+  }, []);
+
+  // If there's exactly one user, prefill any empty assignee fields with that user's email
+  useEffect(() => {
+    if (users.length === 1) {
+      const rules = watch('rules') || [];
+      rules.forEach((r: any, i: number) => {
+        if (!r?.assignee) setValue(`rules.${i}.assignee`, users[0].email);
+      });
+    }
+  }, [users]);
 
   // Update parent on submit
   const onSubmit = (values: any) => {
@@ -192,16 +197,16 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
                 {watch("rules")?.map((rule: any, idx: number) => (
                   <div key={idx} className="mb-4">
                     <div className="flex gap-2 items-center">
-                      {invoiceFields.length ? (
+                      {inputFields.length > 0 ? (
                         <Select
                           value={watch(`rules.${idx}.field`) || ""}
                           onValueChange={value => setValue(`rules.${idx}.field`, value)}
                         >
-                          <SelectTrigger className="mt-1.5 w-40">
+                          <SelectTrigger className="mt-1.5 w-2/5">
                             <SelectValue placeholder="Field" />
                           </SelectTrigger>
                           <SelectContent>
-                            {invoiceFields.map(f => (
+                            {inputFields.map(f => (
                               <SelectItem key={f} value={f}>{f}</SelectItem>
                             ))}
                           </SelectContent>
@@ -210,14 +215,14 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
                         <Input
                           {...register(`rules.${idx}.field` as const)}
                           placeholder="Field (e.g., amount)"
-                          className="w-1/5"
+                          className="w-2/5"
                         />
                       )}
                       <Select
                         value={watch(`rules.${idx}.operator`) || ""}
                         onValueChange={value => setValue(`rules.${idx}.operator`, value)}
                       >
-                        <SelectTrigger className="mt-1.5 w-28">
+                        <SelectTrigger className="mt-1.5 w-20">
                           <SelectValue placeholder="Operator" />
                         </SelectTrigger>
                         <SelectContent>
@@ -229,7 +234,7 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
                       <Input
                         {...register(`rules.${idx}.value` as const)}
                         placeholder="Value"
-                        className="w-1/5"
+                        className="w-1/4"
                       />
                       <Button
                         type="button"
@@ -311,17 +316,17 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
               <Label>Approval Rules</Label>
               <div className="space-y-2 mt-2">
                 {watch("rules")?.map((rule: any, idx: number) => (
-                  <div key={idx} className="flex gap-2 items-center">
-                    {invoiceFields.length ? (
+                  <div key={idx} className="flex flex-wrap gap-2 items-center">
+                      {inputFields.length > 0 ? (
                       <Select
                         value={watch(`rules.${idx}.field`) || ""}
                         onValueChange={value => setValue(`rules.${idx}.field`, value)}
                       >
-                        <SelectTrigger className="mt-1.5 w-40">
+                        <SelectTrigger className="mt-1.5 w-1/3">
                           <SelectValue placeholder="Field" />
                         </SelectTrigger>
                         <SelectContent>
-                          {invoiceFields.map(f => (
+                          {inputFields.map(f => (
                             <SelectItem key={f} value={f}>{f}</SelectItem>
                           ))}
                         </SelectContent>
@@ -330,7 +335,7 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
                       <Input
                         {...register(`rules.${idx}.field` as const)}
                         placeholder="Field (e.g., amount)"
-                        className="w-1/5"
+                        className="w-1/3"
                       />
                     )}
                     <Select
@@ -349,45 +354,29 @@ export const ConfigPanel = ({ node, onUpdate, onClose, allCards }: ConfigPanelPr
                     <Input
                       {...register(`rules.${idx}.value` as const)}
                       placeholder="Value"
-                      className="w-1/5"
+                      className="w-1/3"
                     />
-                    {/* Assignee selector: show company employees + manual option */}
-                    <div className="flex items-center gap-2">
+                    {users.length > 0 ? (
                       <Select
-                        value={watch(`rules.${idx}.assignee`) || (employees.length ? "" : "__manual__")}
-                        onValueChange={value => {
-                          if (value === "__manual__") {
-                            setValue(`rules.${idx}.assignee`, "");
-                          } else {
-                            setValue(`rules.${idx}.assignee`, value);
-                          }
-                        }}
+                        value={watch(`rules.${idx}.assignee`) || ""}
+                        onValueChange={value => setValue(`rules.${idx}.assignee`, value)}
                       >
-                        <SelectTrigger className="mt-1.5 w-56">
+                        <SelectTrigger className="mt-1.5 w-1/3">
                           <SelectValue placeholder="Assignee" />
                         </SelectTrigger>
                         <SelectContent>
-                          {employees.map(emp => (
-                            <SelectItem key={emp._id || emp.id} value={emp.email}>{emp.name} — {emp.email}</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u._id} value={u.email}>{u.name} ({u.email})</SelectItem>
                           ))}
-                          <SelectItem value="__manual__">Enter manually</SelectItem>
                         </SelectContent>
                       </Select>
-
-                      {/* Manual input shown when user selects 'Enter manually' or when there are no employees */}
-                      {(
-                        watch(`rules.${idx}.assignee`) === "" ||
-                        watch(`rules.${idx}.assignee`) === "__manual__" ||
-                        employees.length === 0
-                      ) && (
-                        <Input
-                          value={watch(`rules.${idx}.assignee`) === "__manual__" ? "" : (watch(`rules.${idx}.assignee`) || "")}
-                          onChange={(e) => setValue(`rules.${idx}.assignee`, e.target.value)}
-                          placeholder="Assignee (email)"
-                          className="w-1/4"
-                        />
-                      )}
-                    </div>
+                    ) : (
+                      <Input
+                        {...register(`rules.${idx}.assignee` as const)}
+                        placeholder="Assignee (employee email)"
+                        className="w-1/3"
+                      />
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
