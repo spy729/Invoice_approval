@@ -38,9 +38,13 @@ if (process.env.FRONTEND_URL) {
 const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 console.log('[app] allowed CORS origins:', allowedOrigins);
 
-
+// Use dynamic origin function so we can echo back the Origin header when it's allowed.
+// Allow any origin. When credentials are required, `cors` with `origin: true`
+// will reflect the request Origin (not '*') which is required for cookies to work.
+// Note: allowing all origins reduces security — for production prefer
+// specifying exact origins via env vars.
 app.use(cors({
-  origin: true, // reflect request origin
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
@@ -52,7 +56,7 @@ app.use(cookieParser());
 // Add headers for all responses
 app.use((req, res, next) => {
   const origin = req.headers.origin as string | undefined;
-  // Echo back any origin when present. This works together with `cors({ origin: true })` above.
+  // Echo any incoming origin so browsers receive Access-Control-Allow-Origin.
   if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
   }
