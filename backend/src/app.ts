@@ -19,8 +19,7 @@ const app: Express = express();
 // Enable CORS for development
 // Allowed origins (include your deployed frontend and backend URLs)
 const defaultOrigins = [
-  'https://invoice-approval-ikg1sgolx-rishi-agarwals-projects-4bd3d937.vercel.app',
-  'http://localhost:8080',
+  'http://localhost:8081',
   'http://localhost:4000',
   'https://invoice-approval.vercel.app',
   'https://invoice-approval-iv8n.onrender.com'
@@ -39,14 +38,9 @@ if (process.env.FRONTEND_URL) {
 const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 console.log('[app] allowed CORS origins:', allowedOrigins);
 
-// Use dynamic origin function so we can echo back the Origin header when it's allowed.
+
 app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    return callback(new Error('CORS policy: Origin not allowed'));
-  },
+  origin: true, // reflect request origin
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
@@ -58,8 +52,8 @@ app.use(cookieParser());
 // Add headers for all responses
 app.use((req, res, next) => {
   const origin = req.headers.origin as string | undefined;
-  if (origin && allowedOrigins.includes(origin)) {
-    // Echo back the allowed origin so browsers accept cookies when credentials:true
+  // Echo back any origin when present. This works together with `cors({ origin: true })` above.
+  if (origin) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   res.header('Access-Control-Allow-Credentials', 'true');
