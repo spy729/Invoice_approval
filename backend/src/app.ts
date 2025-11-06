@@ -19,6 +19,7 @@ const app: Express = express();
 // Enable CORS for development
 // Allowed origins (include your deployed frontend and backend URLs)
 const defaultOrigins = [
+  'https://invoice-approval-ikg1sgolx-rishi-agarwals-projects-4bd3d937.vercel.app',
   'http://localhost:8080',
   'http://localhost:4000',
   'https://invoice-approval.vercel.app',
